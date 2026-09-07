@@ -6,10 +6,7 @@
     canAttemptPrint: false,
     printInProgress: false,
     logoData: null,
-    webVersion: null,
-    piVersion: null,
-    // Populated from /api/health — null until the first successful check,
-    // same "don't know yet" meaning as webVersion/piVersion above.
+    // Populated from /api/health — null until the first successful check.
     serverMaxPaperInches: null
   };
   const connectionForm = $('connection-form');
@@ -50,23 +47,6 @@
 
   function apiUrl(path) {
     return `${state.bridgeUrl}${path}`;
-  }
-
-  function showVersions() {
-    const web = state.webVersion || 'unknown';
-    const pi = state.piVersion || 'unknown';
-    const versions = $('versions');
-    versions.textContent = `Web ${web} · Pi ${pi}`;
-    versions.classList.toggle('mismatch', Boolean(state.webVersion && state.piVersion && state.webVersion !== state.piVersion));
-  }
-
-  async function loadWebVersion() {
-    try {
-      const response = await fetch('version.txt', { cache: 'no-store' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      state.webVersion = (await response.text()).trim();
-    } catch { state.webVersion = null; }
-    showVersions();
   }
 
   function loadPreferences() {
@@ -461,8 +441,6 @@
       const response = await fetch(apiUrl('/api/health'), { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const health = await response.json();
-      state.piVersion = health.version || null;
-      showVersions();
       updateDispatcher(health.dispatcher ?? null);
       updatePaperLimit(health.maxPaperLengthInches ?? null);
       updateQueueDepth(health.queueDepth, health.queueMax);
@@ -480,8 +458,6 @@
         setPrintAvailability(true);
       }
     } catch {
-      state.piVersion = null;
-      showVersions();
       updateDispatcher(undefined);
       updatePaperLimit(undefined);
       updateQueueDepth(undefined, undefined);
@@ -492,7 +468,6 @@
   }
 
   loadBridgeUrl();
-  loadWebVersion();
   loadPreferences();
   loadLastPrint();
   setMode(state.mode);
