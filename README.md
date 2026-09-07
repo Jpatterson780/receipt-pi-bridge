@@ -244,7 +244,7 @@ Settings are under `Bridge` in `src/Ncr7198.PiBridge/appsettings.json` and can b
 | `Bridge__DevelopmentOutputDirectory` | `printed-jobs` | Output directory for file-backed development prints |
 | `Bridge__MaxOutstandingJobs` | `3` | Active plus waiting requests |
 | `Bridge__PrintIdLifetimeHours` | `24` | In-memory duplicate window |
-| `Bridge__MaxPaperLengthInches` | `60` | Rejects a print whose estimated length exceeds this. Set to `0` (or any non-positive value) to remove the cap entirely. Raised from the original 8" default — a real MVRK gear-checkout manifest routinely runs past that on its own. |
+| `Bridge__MaxPaperLengthInches` | `30` | Rejects a print whose estimated length exceeds this. A request can override it per print via `maxPaperLengthInches` in its body (the web UI's "Max paper" field, or `ReceiptPayload.maxPaperLengthInches` from MVRK-Core). Set to `0` (or any non-positive value) to remove the cap entirely. Raised from the original 8" default — a real MVRK gear-checkout manifest routinely runs past that on its own. |
 
 `GET /api/health` and its compatibility alias `GET /health` return the selected transport mode, whether that transport is available, whether a real printer device is available, and the MVRK print dispatcher's last reported polling cadence when it is running.
 

@@ -193,22 +193,22 @@ public sealed class ReceiptRendererTests
     }
 
     [Fact]
-    public void PaperLimit_DefaultsToSixtyEstimatedInches()
+    public void PaperLimit_DefaultsToThirtyEstimatedInches()
     {
-        // 434/435 content lines is the exact boundary for the default 60"
+        // 212/213 content lines is the exact boundary for the default 30"
         // cap at this calibration (accounting for the 4 default
         // PostPrintLines) — see BridgeOptions.MaxPaperLengthInches for why
-        // it's 60 now rather than the original 8" (a real MVRK gear-checkout
+        // it's 30 now rather than the original 8" (a real MVRK gear-checkout
         // manifest routinely exceeds 8" on its own).
-        var withinLimit = string.Join('\n', Enumerable.Repeat("X", 434));
-        var overLimit = string.Join('\n', Enumerable.Repeat("X", 435));
+        var withinLimit = string.Join('\n', Enumerable.Repeat("X", 212));
+        var overLimit = string.Join('\n', Enumerable.Repeat("X", 213));
 
         _renderer.Render(new PrintRequest { Content = withinLimit });
         var exception = Assert.Throws<PrintValidationException>(() =>
             _renderer.Render(new PrintRequest { Content = overLimit }));
 
-        Assert.Contains("60.02 inches", exception.Message);
-        Assert.Contains("maximum is 60 inches", exception.Message);
+        Assert.Contains("30.02 inches", exception.Message);
+        Assert.Contains("maximum is 30 inches", exception.Message);
     }
 
     [Fact]
