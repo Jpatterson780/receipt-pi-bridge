@@ -151,8 +151,9 @@
       el.textContent = `Dispatcher stale · last seen ${info.reportAgeSeconds}s ago`;
       el.className = 'status dispatcher warn';
     } else {
-      el.textContent = `Dispatcher ${info.mode} · polling every ${formatSeconds(info.intervalMs)}s`;
-      el.className = 'status dispatcher';
+      const mode = info.mode.charAt(0).toUpperCase() + info.mode.slice(1);
+      el.textContent = `Dispatcher ${mode} · Polling Every ${formatSeconds(info.intervalMs)}s`;
+      el.className = `status dispatcher ${info.mode}`;
     }
   }
 
@@ -303,6 +304,9 @@
       $('json-preview-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
+
+  $('close-preview-button').addEventListener('click', clearReceiptPreview);
+  $('close-json-preview-button').addEventListener('click', clearJsonPreview);
 
   $('copy-json-button').addEventListener('click', async event => {
     const button = event.currentTarget;
