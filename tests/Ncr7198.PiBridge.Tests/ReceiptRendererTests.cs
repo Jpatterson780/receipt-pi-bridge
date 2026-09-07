@@ -193,17 +193,44 @@ public sealed class ReceiptRendererTests
     }
 
     [Fact]
-    public void PaperLimit_AllowsAtMostEightEstimatedInches()
+    public void PaperLimit_DefaultsToSixtyEstimatedInches()
     {
-        var withinLimit = string.Join('\n', Enumerable.Repeat("X", 50));
-        var overLimit = string.Join('\n', Enumerable.Repeat("X", 51));
+        // 434/435 content lines is the exact boundary for the default 60"
+        // cap at this calibration (accounting for the 4 default
+        // PostPrintLines) — see BridgeOptions.MaxPaperLengthInches for why
+        // it's 60 now rather than the original 8" (a real MVRK gear-checkout
+        // manifest routinely exceeds 8" on its own).
+        var withinLimit = string.Join('\n', Enumerable.Repeat("X", 434));
+        var overLimit = string.Join('\n', Enumerable.Repeat("X", 435));
 
         _renderer.Render(new PrintRequest { Content = withinLimit });
         var exception = Assert.Throws<PrintValidationException>(() =>
             _renderer.Render(new PrintRequest { Content = overLimit }));
 
-        Assert.Contains("8.13 inches", exception.Message);
-        Assert.Contains("maximum is 8 inches", exception.Message);
+        Assert.Contains("60.02 inches", exception.Message);
+        Assert.Contains("maximum is 60 inches", exception.Message);
+    }
+
+    [Fact]
+    public void PaperLimit_IsConfigurable()
+    {
+        var renderer = new ReceiptRenderer(options: new BridgeOptions { MaxPaperLengthInches = 1 });
+
+        var exception = Assert.Throws<PrintValidationException>(() =>
+            renderer.Render(new PrintRequest { Content = "Hello" }));
+
+        Assert.Contains("maximum is 1 inches", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void PaperLimit_NonPositiveMeansUnlimited(double maxPaperLengthInches)
+    {
+        var renderer = new ReceiptRenderer(options: new BridgeOptions { MaxPaperLengthInches = maxPaperLengthInches });
+        var longContent = string.Join('\n', Enumerable.Repeat("X", 5000));
+
+        renderer.Render(new PrintRequest { Content = longContent });
     }
 
     [Fact]

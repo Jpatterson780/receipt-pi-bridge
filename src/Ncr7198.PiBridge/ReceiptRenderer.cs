@@ -11,12 +11,15 @@ public sealed class ReceiptRenderer
     public const int LogoRasterBandHeightDots = 24;
     public const double CalibratedTextLinesPerInch = 7.40;
     public const double CalibratedCutterAllowanceInches = 0.70;
-    public const double MaximumPaperLengthInches = 8;
     private readonly LogoRenderer _logoRenderer;
+    // See BridgeOptions.MaxPaperLengthInches for why this is configurable
+    // rather than the fixed 8" this originally shipped with.
+    private readonly double _maxPaperLengthInches;
 
-    public ReceiptRenderer(LogoRenderer? logoRenderer = null)
+    public ReceiptRenderer(LogoRenderer? logoRenderer = null, BridgeOptions? options = null)
     {
         _logoRenderer = logoRenderer ?? new LogoRenderer();
+        _maxPaperLengthInches = (options ?? new BridgeOptions()).MaxPaperLengthInches;
     }
 
     public RenderedPrintJob Render(PrintRequest request)
@@ -37,9 +40,10 @@ public sealed class ReceiptRenderer
             (logo?.RasterBands ?? 0) * LogoRasterBandHeightDots / (double)PrinterDotsPerInch +
             (effectiveCut ? CalibratedCutterAllowanceInches : 0);
         var estimatedInches = estimatedInchesPerCopy * request.Copies;
-        if (estimatedInches > MaximumPaperLengthInches)
+        // <= 0 means "no cap" — see BridgeOptions.MaxPaperLengthInches.
+        if (_maxPaperLengthInches > 0 && estimatedInches > _maxPaperLengthInches)
         {
-            throw new PrintValidationException($"Estimated paper length is {estimatedInches:F2} inches; the maximum is {MaximumPaperLengthInches:F0} inches including text, feeds, logos, and copies.");
+            throw new PrintValidationException($"Estimated paper length is {estimatedInches:F2} inches; the maximum is {_maxPaperLengthInches:F0} inches including text, feeds, logos, and copies.");
         }
 
         var receipt = new NcrReceipt();
