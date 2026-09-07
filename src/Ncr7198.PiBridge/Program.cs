@@ -19,6 +19,7 @@ builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<LogoRenderer>();
 builder.Services.AddSingleton<ReceiptRenderer>();
 builder.Services.AddSingleton<IPrinterTransport, PrinterTransport>();
+builder.Services.AddSingleton<DispatcherStatus>();
 builder.Services.AddSingleton<PrintCoordinator>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<PrintCoordinator>());
 
@@ -31,8 +32,14 @@ app.UseCors();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/health", (IPrinterTransport printer) => Health(printer, bridgeVersion));
-app.MapGet("/api/health", (IPrinterTransport printer) => Health(printer, bridgeVersion));
+app.MapGet("/health", (IPrinterTransport printer, DispatcherStatus dispatcher) => Health(printer, dispatcher, bridgeVersion));
+app.MapGet("/api/health", (IPrinterTransport printer, DispatcherStatus dispatcher) => Health(printer, dispatcher, bridgeVersion));
+
+app.MapPost("/api/dispatcher/status", (DispatcherReport report, DispatcherStatus dispatcher) =>
+{
+    dispatcher.Record(report);
+    return Results.Ok();
+});
 
 app.MapPost("/api/preview", (PrintRequest request, ReceiptRenderer renderer) =>
     Execute(() => Results.Ok(renderer.Render(request).Preview)));
@@ -62,9 +69,10 @@ static IResult Execute(Func<IResult> action)
     catch (PrintValidationException exception) { return Error(400, exception.Message); }
 }
 
-static IResult Health(IPrinterTransport printer, string version)
+static IResult Health(IPrinterTransport printer, DispatcherStatus dispatcher, string version)
 {
     var transportAvailable = printer.IsAvailable();
+    var report = dispatcher.Snapshot();
     return Results.Ok(new
     {
         service = "NCR 7198 Raspberry Pi Bridge",
@@ -72,7 +80,17 @@ static IResult Health(IPrinterTransport printer, string version)
         transportMode = printer.Mode,
         transport = printer.Description,
         transportAvailable,
-        printerAvailable = printer.Mode == "Device" && transportAvailable
+        printerAvailable = printer.Mode == "Device" && transportAvailable,
+        dispatcher = report is null ? null : new
+        {
+            mode = report.Report.Mode,
+            intervalMs = report.Report.IntervalMs,
+            idleIntervalMs = report.Report.IdleIntervalMs,
+            activeIntervalMs = report.Report.ActiveIntervalMs,
+            activeWindowMs = report.Report.ActiveWindowMs,
+            reportAgeSeconds = (int)report.Age.TotalSeconds,
+            stale = report.Stale
+        }
     });
 }
 

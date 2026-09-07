@@ -13,6 +13,7 @@ For a new Pi and printer, follow [PI-SETUP.md](PI-SETUP.md) from imaging Raspber
 - Provides `POST /api/preview` to validate and render a receipt without accessing the printer.
 - Provides `POST /api/print` to queue, render, print, feed, and cut a receipt.
 - Provides `GET /api/health` so a remote web page can distinguish a reachable Pi from an attached printer.
+- Accepts `POST /api/dispatcher/status` from the co-located MVRK print dispatcher and echoes its current polling cadence back through `GET /api/health` and the web page.
 - Supports standard 44-column and compressed 56-column printing.
 - Accepts printable ASCII `U+0020` through `U+007E`; content may also contain CR/LF line breaks.
 - Serializes print jobs so bytes from separate requests cannot interleave.
@@ -94,6 +95,30 @@ GET /api/health
 `GET /health` remains available as a compatibility alias. A successful response proves the Pi bridge is reachable; `printerAvailable` separately reports whether the configured device transport can currently access the printer. The response's `version` uses the deployment identifier bundled on that Pi, such as `2026.08.25-1`.
 
 The web page displays both its own bundled version and the version reported by the selected Pi. This makes a version mismatch visible when the interface is hosted independently from the bridge.
+
+When the MVRK print dispatcher is running on the same Pi, the response also carries a `dispatcher` object; it is `null` until the first report arrives:
+
+```json
+"dispatcher": {
+  "mode": "idle",
+  "intervalMs": 10000,
+  "idleIntervalMs": 10000,
+  "activeIntervalMs": 3000,
+  "activeWindowMs": 10800000,
+  "reportAgeSeconds": 12,
+  "stale": false
+}
+```
+
+`mode` is `idle` or `active` and `intervalMs` is the interval currently in effect. `stale` becomes `true` once no report has arrived for 150 seconds (the dispatcher heartbeats every 60), which the web page shows as a warning. See `POST /api/dispatcher/status` below.
+
+### Dispatcher status
+
+```http
+POST /api/dispatcher/status
+```
+
+Accepts `{ "mode", "intervalMs", "idleIntervalMs", "activeIntervalMs", "activeWindowMs" }` and stores it in memory for `GET /api/health` to report. Intended only for the local MVRK print dispatcher, which posts it at startup, on every idle/active switch, and once per minute as a heartbeat. Like the other endpoints it has no authentication and is expected to be reachable only over localhost.
 
 ### Preview
 
@@ -220,7 +245,7 @@ Settings are under `Bridge` in `src/Ncr7198.PiBridge/appsettings.json` and can b
 | `Bridge__MaxOutstandingJobs` | `3` | Active plus waiting requests |
 | `Bridge__PrintIdLifetimeHours` | `24` | In-memory duplicate window |
 
-`GET /api/health` and its compatibility alias `GET /health` return the selected transport mode, whether that transport is available, and whether a real printer device is available.
+`GET /api/health` and its compatibility alias `GET /health` return the selected transport mode, whether that transport is available, whether a real printer device is available, and the MVRK print dispatcher's last reported polling cadence when it is running.
 
 ## Raspberry Pi deployment
 

@@ -132,6 +132,30 @@
     };
   }
 
+  function formatSeconds(ms) {
+    const seconds = ms / 1000;
+    return Number.isInteger(seconds) ? String(seconds) : seconds.toFixed(1);
+  }
+
+  function updateDispatcher(info) {
+    const el = $('dispatcher');
+    if (info === undefined) {
+      el.classList.add('hidden');
+      return;
+    }
+    el.classList.remove('hidden');
+    if (!info) {
+      el.textContent = 'Dispatcher not reporting';
+      el.className = 'status dispatcher warn';
+    } else if (info.stale) {
+      el.textContent = `Dispatcher stale · last seen ${info.reportAgeSeconds}s ago`;
+      el.className = 'status dispatcher warn';
+    } else {
+      el.textContent = `Dispatcher ${info.mode} · polling every ${formatSeconds(info.intervalMs)}s`;
+      el.className = 'status dispatcher';
+    }
+  }
+
   function showMessage(value, kind) {
     message.textContent = value;
     message.className = `message ${kind}`;
@@ -305,6 +329,7 @@
       const health = await response.json();
       state.piVersion = health.version || null;
       showVersions();
+      updateDispatcher(health.dispatcher ?? null);
       if (health.transportMode === 'File') {
         $('health').textContent = 'Development file mode';
         $('health').className = 'status';
@@ -321,6 +346,7 @@
     } catch {
       state.piVersion = null;
       showVersions();
+      updateDispatcher(undefined);
       $('health').textContent = 'Pi offline';
       $('health').className = 'status bad';
       setPrintAvailability(false, 'The Pi bridge is offline.');
