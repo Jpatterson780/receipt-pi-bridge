@@ -13,6 +13,15 @@ public sealed record PrintRequest
     public int Copies { get; init; } = 1;
     public string? Logo { get; init; }
     public string LogoPosition { get; init; } = "top";
+    // Same shape as Logo/LogoPosition, and rendered through the same
+    // LogoRenderer/NcrReceipt.Logo() raster path — a barcode is just
+    // another 1-bit image as far as the printer is concerned. Defaults to
+    // "bottom" (unlike Logo's "top") since the typical use — a parent
+    // case's tag scannable off a child asset's own tag — reads best right
+    // above the cut, near the rest of that item's details, rather than
+    // competing with a brand logo at the very top.
+    public string? Barcode { get; init; }
+    public string BarcodePosition { get; init; } = "bottom";
     // Per-request override of BridgeOptions.MaxPaperLengthInches — null
     // (the normal case) just uses the server's configured default. Same
     // "<= 0 means no cap" semantics as the server setting, for the rare
@@ -23,7 +32,8 @@ public sealed record PrintRequest
 }
 
 public sealed record RenderedPrintJob(byte[] Bytes, string[] Preview, string Hash, string? PrintId,
-    int Copies, bool RequestedCut, bool EffectiveCut, bool CutForced, string? LogoPreviewDataUrl = null);
+    int Copies, bool RequestedCut, bool EffectiveCut, bool CutForced, string? LogoPreviewDataUrl = null,
+    string? BarcodePreviewDataUrl = null);
 
 public sealed record PrintResult(string Status, string? PrintId, int Copies,
     bool RequestedCut, bool EffectiveCut, bool CutForced, int Bytes);

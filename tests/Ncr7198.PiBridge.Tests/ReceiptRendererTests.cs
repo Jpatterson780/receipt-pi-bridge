@@ -183,6 +183,104 @@ public sealed class ReceiptRendererTests
         Assert.Contains("valid Base64", exception.Message);
     }
 
+    [Fact]
+    public void Barcode_DefaultsToBottomAndEmitsRasterData()
+    {
+        var barcode = Convert.ToBase64String(CreateBmp(2, 1, (x, _) => x == 0));
+        var job = _renderer.Render(new PrintRequest
+        {
+            Content = "Text", Barcode = barcode, PostPrintLines = 0, Cut = false
+        });
+
+        Assert.Equal("Text", job.Preview[0]);
+        Assert.Equal("[BARCODE: 2x1]", job.Preview[1]);
+        var command = job.Bytes.AsSpan().IndexOf(new byte[] { 0x1B, 0x2A, 0x21, 0x02, 0x00 });
+        Assert.True(command >= 0);
+        Assert.Equal(new byte[] { 0x80, 0x00, 0x00, 0x00, 0x00, 0x00 }, job.Bytes[(command + 5)..(command + 11)]);
+    }
+
+    [Fact]
+    public void Barcode_CanBePlacedAboveText()
+    {
+        var job = _renderer.Render(new PrintRequest
+        {
+            Content = "Text", Barcode = Convert.ToBase64String(CreateBmp(1, 1, (_, _) => true)),
+            BarcodePosition = "top", PostPrintLines = 0, Cut = false
+        });
+
+        Assert.StartsWith("[BARCODE:", job.Preview[0]);
+        Assert.Equal("Text", job.Preview[1]);
+    }
+
+    [Fact]
+    public void LogoAndBarcode_LogoIsOutermostWhenBothShareASide()
+    {
+        var top = _renderer.Render(new PrintRequest
+        {
+            Content = "Text",
+            Logo = Convert.ToBase64String(CreateBmp(1, 1, (_, _) => true)),
+            LogoPosition = "top",
+            Barcode = Convert.ToBase64String(CreateBmp(1, 1, (_, _) => true)),
+            BarcodePosition = "top",
+            PostPrintLines = 0,
+            Cut = false
+        });
+
+        Assert.StartsWith("[LOGO:", top.Preview[0]);
+        Assert.StartsWith("[BARCODE:", top.Preview[1]);
+        Assert.Equal("Text", top.Preview[2]);
+
+        var bottom = _renderer.Render(new PrintRequest
+        {
+            Content = "Text",
+            Logo = Convert.ToBase64String(CreateBmp(1, 1, (_, _) => true)),
+            LogoPosition = "bottom",
+            Barcode = Convert.ToBase64String(CreateBmp(1, 1, (_, _) => true)),
+            BarcodePosition = "bottom",
+            PostPrintLines = 0,
+            Cut = false
+        });
+
+        Assert.Equal("Text", bottom.Preview[0]);
+        Assert.StartsWith("[BARCODE:", bottom.Preview[1]);
+        Assert.StartsWith("[LOGO:", bottom.Preview[2]);
+    }
+
+    [Fact]
+    public void BarcodePosition_RejectsUnknownValues()
+    {
+        var exception = Assert.Throws<PrintValidationException>(() =>
+            _renderer.Render(new PrintRequest { Content = "Text", BarcodePosition = "middle" }));
+
+        Assert.Contains("barcodePosition", exception.Message);
+    }
+
+    [Fact]
+    public void Barcode_RejectsInvalidBase64()
+    {
+        var exception = Assert.Throws<PrintValidationException>(() =>
+            _renderer.Render(new PrintRequest { Content = "Text", Barcode = "not-base64" }));
+
+        Assert.Contains("valid Base64", exception.Message);
+    }
+
+    [Fact]
+    public void PaperEstimate_IncludesBarcodeRasterBandsAdditivelyWithLogo()
+    {
+        // "X" with default PostPrintLines/Cut estimates to ~1.376" on its
+        // own; each one-pixel-tall image (still one full 24-dot band) adds
+        // ~0.118". A 1.55" cap sits strictly between "one image" (~1.494")
+        // and "both images" (~1.612") — proving the barcode's band is
+        // counted in addition to the logo's, not instead of it or ignored.
+        var image = Convert.ToBase64String(CreateBmp(1, 1, (_, _) => true));
+
+        _renderer.Render(new PrintRequest { Content = "X", Logo = image, MaxPaperLengthInches = 1.55 });
+
+        var exception = Assert.Throws<PrintValidationException>(() =>
+            _renderer.Render(new PrintRequest { Content = "X", Logo = image, Barcode = image, MaxPaperLengthInches = 1.55 }));
+        Assert.Contains("1.61 inches", exception.Message);
+    }
+
     [Theory]
     [InlineData(-1)]
     [InlineData(11)]

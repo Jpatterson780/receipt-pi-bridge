@@ -32,12 +32,13 @@ public sealed class ReceiptRenderer
             ? RenderLiteralLines(request.Lines, request.Wrap, width)
             : RenderContent(request.Content, request.Wrap, width);
         var logo = _logoRenderer.Render(request.Logo);
+        var barcode = _logoRenderer.Render(request.Barcode);
 
         var effectiveCut = request.Cut || request.Copies > 1;
         var cutForced = !request.Cut && request.Copies > 1;
         var textRows = checked(request.PrePrintLines + renderedLines.Count + request.PostPrintLines);
         var estimatedInchesPerCopy = textRows / CalibratedTextLinesPerInch +
-            (logo?.RasterBands ?? 0) * LogoRasterBandHeightDots / (double)PrinterDotsPerInch +
+            ((logo?.RasterBands ?? 0) + (barcode?.RasterBands ?? 0)) * LogoRasterBandHeightDots / (double)PrinterDotsPerInch +
             (effectiveCut ? CalibratedCutterAllowanceInches : 0);
         var estimatedInches = estimatedInchesPerCopy * request.Copies;
         // request.MaxPaperLengthInches overrides the server default for
@@ -54,13 +55,20 @@ public sealed class ReceiptRenderer
         {
             receipt.Initialize().Compressed(request.Compressed).Feed(request.PrePrintLines);
             preview.AddRange(Enumerable.Repeat(string.Empty, request.PrePrintLines));
-            if (logo is not null && request.LogoPosition == "top") AddLogo(receipt, preview, logo);
+            // Logo always sits outermost (nearest the top edge or the cut)
+            // and barcode innermost (nearest the item lines it describes)
+            // whenever both land on the same side — a fixed, predictable
+            // order rather than something that depends on which was
+            // supplied first.
+            if (logo is not null && request.LogoPosition == "top") AddImage(receipt, preview, logo, "LOGO");
+            if (barcode is not null && request.BarcodePosition == "top") AddImage(receipt, preview, barcode, "BARCODE");
             foreach (var line in renderedLines)
             {
                 receipt.Line(line);
                 preview.Add(line);
             }
-            if (logo is not null && request.LogoPosition == "bottom") AddLogo(receipt, preview, logo);
+            if (barcode is not null && request.BarcodePosition == "bottom") AddImage(receipt, preview, barcode, "BARCODE");
+            if (logo is not null && request.LogoPosition == "bottom") AddImage(receipt, preview, logo, "LOGO");
             receipt.Feed(request.PostPrintLines);
             preview.AddRange(Enumerable.Repeat(string.Empty, request.PostPrintLines));
             if (effectiveCut)
@@ -74,7 +82,7 @@ public sealed class ReceiptRenderer
         var bytes = receipt.Build();
         return new RenderedPrintJob(bytes, [.. preview], Convert.ToHexString(SHA256.HashData(bytes)),
             NormalizePrintId(request.PrintId), request.Copies, request.Cut, effectiveCut, cutForced,
-            logo?.ToBmpDataUrl());
+            logo?.ToBmpDataUrl(), barcode?.ToBmpDataUrl());
     }
 
     private static void ValidateRanges(PrintRequest request)
@@ -89,6 +97,8 @@ public sealed class ReceiptRenderer
             throw new PrintValidationException("wrap must be 'none' or 'word'.");
         if (request.LogoPosition is not ("top" or "bottom"))
             throw new PrintValidationException("logoPosition must be 'top' or 'bottom'.");
+        if (request.BarcodePosition is not ("top" or "bottom"))
+            throw new PrintValidationException("barcodePosition must be 'top' or 'bottom'.");
         if (NormalizePrintId(request.PrintId) is { Length: > 128 })
             throw new PrintValidationException("printId cannot exceed 128 characters.");
     }
@@ -136,11 +146,11 @@ public sealed class ReceiptRenderer
         return wrapped;
     }
 
-    private static void AddLogo(NcrReceipt receipt, List<string> preview, RenderedLogo logo)
+    private static void AddImage(NcrReceipt receipt, List<string> preview, RenderedLogo image, string label)
     {
-        receipt.Logo(logo);
-        preview.Add($"[LOGO: {logo.Width}x{logo.Height}]");
-        preview.AddRange(Enumerable.Repeat(string.Empty, Math.Max(0, logo.RasterBands - 1)));
+        receipt.Logo(image);
+        preview.Add($"[{label}: {image.Width}x{image.Height}]");
+        preview.AddRange(Enumerable.Repeat(string.Empty, Math.Max(0, image.RasterBands - 1)));
     }
 
     private static void WordWrap(string line, int width, List<string> output)

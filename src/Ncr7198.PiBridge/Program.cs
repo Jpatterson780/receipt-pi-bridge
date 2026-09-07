@@ -45,12 +45,13 @@ app.MapPost("/api/preview", (PrintRequest request, ReceiptRenderer renderer) =>
     Execute(() =>
     {
         var rendered = renderer.Render(request);
-        // logo is the actual dithered 1-bit image (a data:image/bmp URL) —
-        // not a re-derived approximation, the literal bytes NcrReceipt.Logo()
-        // would send to the printer — so the web page can show what a logo
-        // will really look like on thermal paper instead of a "[LOGO: WxH]"
-        // placeholder. null whenever no logo was supplied.
-        return Results.Ok(new { lines = rendered.Preview, logo = rendered.LogoPreviewDataUrl });
+        // logo/barcode are the actual dithered 1-bit images (data:image/bmp
+        // URLs) — not a re-derived approximation, the literal bytes
+        // NcrReceipt.Logo() would send to the printer — so the web page can
+        // show what each will really look like on thermal paper instead of
+        // a "[LOGO: WxH]"/"[BARCODE: WxH]" placeholder. null whenever none
+        // was supplied.
+        return Results.Ok(new { lines = rendered.Preview, logo = rendered.LogoPreviewDataUrl, barcode = rendered.BarcodePreviewDataUrl });
     }));
 
 app.MapPost("/api/print", async (PrintRequest request, ReceiptRenderer renderer, PrintCoordinator coordinator) =>

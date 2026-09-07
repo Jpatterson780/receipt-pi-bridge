@@ -9,7 +9,7 @@ For a new Pi and printer, follow [PI-SETUP.md](PI-SETUP.md) from imaging Raspber
 ## Features
 
 - Serves a one-page receipt editor from the Pi on standard HTTP port 80 at `http://<pi-address>/`.
-- Supports the same options from the web page and JSON API: content or literal lines, one optional top/bottom logo, pre-print feed, post-print feed, wrapping, compressed mode, cutting, copies, and optional `printId`.
+- Supports the same options from the web page and JSON API: content or literal lines, one optional top/bottom logo, one optional top/bottom barcode image (rendered the same way as the logo — the caller supplies the already-encoded barcode/QR image, not raw data to encode), pre-print feed, post-print feed, wrapping, compressed mode, cutting, copies, and optional `printId`.
 - Provides `POST /api/preview` to validate and render a receipt without accessing the printer.
 - Provides `POST /api/print` to queue, render, print, feed, and cut a receipt.
 - Provides `GET /api/health` so a remote web page can distinguish a reachable Pi from an attached printer.
@@ -149,13 +149,17 @@ POST /api/print
   "cut": true,
   "copies": 1,
   "logo": "data:image/png;base64,iVBORw0KGgo...",
-  "logoPosition": "top"
+  "logoPosition": "top",
+  "barcode": "data:image/png;base64,iVBORw0KGgo...",
+  "barcodePosition": "bottom"
 }
 ```
 
 `lines` and `content` are nullable. If `lines` is non-null, it wins and `content` is ignored. If `lines` is null, `content` is required.
 
 `logo` is nullable and carries the image in the request. It accepts either a standard Base64 image data URL such as `data:image/png;base64,...` or raw Base64 image bytes. The JSON example abbreviates the Base64 and must be replaced with the complete value. PNG, JPEG, BMP, TGA, PSD, and GIF files are accepted; animated images use the first frame. The image is composited onto white, converted to monochrome, centered, and proportionally reduced to the 576-dot receipt width when necessary. Smaller images are not enlarged. `logoPosition` accepts `"top"` or `"bottom"` and defaults to `"top"`.
+
+`barcode` is a second, independent image slot rendered through the exact same pipeline as `logo` (same accepted formats, same monochrome/centering/scaling rules, same `"top"`/`"bottom"` position values) — it carries no barcode-specific logic of its own. The caller renders the barcode or QR code image itself (Code128, QR, whatever fits the use case) and sends it exactly like a logo; the bridge just rasters whatever 1-bit image it's given. `barcodePosition` defaults to `"bottom"` rather than `"top"`, since a barcode is typically tied to the item lines above it rather than to page branding. When both `logo` and `barcode` land on the same side, the logo prints outermost (nearest the top edge or the cut) and the barcode innermost (nearest the item lines).
 
 The web interface reads the chosen file into the request automatically. The image itself is not retained in browser storage; choose it again after reloading the page. `logoPosition` is retained with the other browser-local display settings.
 
@@ -171,10 +175,12 @@ Defaults:
 | `copies` | `1` |
 | `logo` | `null` |
 | `logoPosition` | `"top"` |
+| `barcode` | `null` |
+| `barcodePosition` | `"bottom"` |
 
 ### Preview response
 
-Preview returns only the rendered array. Empty strings represent feed or reserved logo-height rows, `[LOGO: WIDTHxHEIGHT]` represents the centered monochrome logo, and `[CUT]` represents a cut:
+Preview returns only the rendered array. Empty strings represent feed or reserved logo/barcode-height rows, `[LOGO: WIDTHxHEIGHT]` represents the centered monochrome logo, `[BARCODE: WIDTHxHEIGHT]` represents the centered monochrome barcode image, and `[CUT]` represents a cut:
 
 ```json
 [
@@ -223,11 +229,11 @@ See `examples/CSharpClient.cs` and `examples/test-from-powershell.ps1` for compl
 - `word` is available only with `content`. It wraps at spaces, preserves explicit newlines, normalizes spaces between words, and splits an unbroken word across lines when necessary.
 - Printable receipt characters are limited to ASCII `U+0020` through `U+007E`. Tabs, extended ASCII, emoji, smart punctuation, and other Unicode characters are rejected.
 - Input receipt content is limited to 16,384 characters.
-- Estimated physical output is limited to 8 inches. The calculation conservatively uses 7.40 text lines per inch, 24-dot logo raster bands at 203 DPI, and a 0.70-inch cutter-position allowance for every cut, including explicit feeds and all copies.
+- Estimated physical output is limited to 8 inches. The calculation conservatively uses 7.40 text lines per inch, 24-dot logo/barcode raster bands at 203 DPI, and a 0.70-inch cutter-position allowance for every cut, including explicit feeds and all copies.
 - `printId` is optional, trimmed, case-sensitive, and limited to 128 characters.
-- `logo` is optional, limited to one Base64-encoded image, 8 MB after Base64 decoding, and 8,192 pixels on either source dimension.
+- `logo` is optional, limited to one Base64-encoded image, 8 MB after Base64 decoding, and 8,192 pixels on either source dimension. `barcode` is a second, independent slot with the same limits.
 - The complete JSON request body is limited to 12 MB.
-- `logoPosition` must be `"top"` or `"bottom"`, even when no logo is supplied.
+- `logoPosition` must be `"top"` or `"bottom"`, even when no logo is supplied. `barcodePosition` must be `"top"` or `"bottom"`, even when no barcode is supplied.
 - The fourth unique outstanding print request receives HTTP 429. A matching duplicate `printId` is resolved before queue capacity is checked.
 
 Validation failures return HTTP 400 with a JSON `error` property. A reused `printId` conflict returns 409, a full queue returns 429, and a printer/device failure returns 503.
@@ -308,7 +314,7 @@ The text, feed, and cut commands were verified on the NCR 7198 used for this pro
 | Center justification | `1B 61 01` |
 | 24-dot double-density raster band | `1B 2A 21 nL nH ...` |
 
-Each copy is emitted as initialize, pitch selection, pre-feed, optional top logo, receipt lines, optional bottom logo, post-feed, optional cut, and restore-standard-pitch.
+Each copy is emitted as initialize, pitch selection, pre-feed, optional top logo, optional top barcode, receipt lines, optional bottom barcode, optional bottom logo, post-feed, optional cut, and restore-standard-pitch.
 
 ## V1 acceptance checklist
 
