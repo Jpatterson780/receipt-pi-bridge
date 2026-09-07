@@ -40,10 +40,12 @@ public sealed class ReceiptRenderer
             (logo?.RasterBands ?? 0) * LogoRasterBandHeightDots / (double)PrinterDotsPerInch +
             (effectiveCut ? CalibratedCutterAllowanceInches : 0);
         var estimatedInches = estimatedInchesPerCopy * request.Copies;
-        // <= 0 means "no cap" — see BridgeOptions.MaxPaperLengthInches.
-        if (_maxPaperLengthInches > 0 && estimatedInches > _maxPaperLengthInches)
+        // request.MaxPaperLengthInches overrides the server default for
+        // just this one print — <= 0 (from either source) means "no cap".
+        var maxPaperLengthInches = request.MaxPaperLengthInches ?? _maxPaperLengthInches;
+        if (maxPaperLengthInches > 0 && estimatedInches > maxPaperLengthInches)
         {
-            throw new PrintValidationException($"Estimated paper length is {estimatedInches:F2} inches; the maximum is {_maxPaperLengthInches:F0} inches including text, feeds, logos, and copies.");
+            throw new PrintValidationException($"Estimated paper length is {estimatedInches:F2} inches; the maximum is {maxPaperLengthInches:F0} inches including text, feeds, logos, and copies.");
         }
 
         var receipt = new NcrReceipt();

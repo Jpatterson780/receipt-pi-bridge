@@ -57,13 +57,14 @@ Printed 1/1/2026, 12:00:00 PM</textarea>
           <label>Feed after <span>lines</span><input id="post-lines" type="number" min="0" max="10" value="4" required></label>
           <label class="logo-image">Logo image <span>optional</span><input id="logo" type="file" accept="image/png,image/jpeg,image/bmp,image/gif,image/x-tga,.tga,.psd"></label>
           <label>Logo position <select id="logo-position"><option value="top" selected>Top</option><option value="bottom">Bottom</option></select></label>
+          <label>Max paper <span>optional, inches</span><input id="max-paper" type="number" min="0" step="0.5" placeholder="server default"></label>
         </div>
         <div class="checks">
           <label><input id="compressed" type="checkbox"> Compressed text output <span>(56 characters wide)</span></label>
           <label><input id="cut" type="checkbox" checked> Cut at end of print</label>
         </div>
         <p id="cut-note" class="help hidden">Cut is required when printing multiple copies.</p>
-        <p class="help">Maximum estimated paper use is 8 inches, including feeds, logos, cuts, and copies.</p>
+        <p id="paper-limit-help" class="help">Maximum estimated paper use is set on the bridge, including feeds, logos, cuts, and copies. Leave "Max paper" blank to use it, or set a one-off value for just this print.</p>
       </section>
 
       <div id="message" class="message hidden" role="status"></div>

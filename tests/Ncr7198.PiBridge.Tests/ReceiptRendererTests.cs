@@ -234,6 +234,25 @@ public sealed class ReceiptRendererTests
     }
 
     [Fact]
+    public void PaperLimit_PerRequestOverrideBeatsServerDefault()
+    {
+        // A request can both loosen and tighten the server's configured
+        // default for just itself, without touching server config. "Hello"
+        // alone renders to roughly 1.4 estimated inches with the defaults
+        // used here (4 PostPrintLines, cut).
+        var renderer = new ReceiptRenderer(options: new BridgeOptions { MaxPaperLengthInches = 1 });
+
+        // Loosens the 1" server default enough for this one print to pass.
+        renderer.Render(new PrintRequest { Content = "Hello", MaxPaperLengthInches = 10 });
+
+        // Tightens it below what "Hello" needs, even though the server
+        // default (1") would already have rejected it too — proving the
+        // override, not the default, is what's actually being enforced.
+        Assert.Throws<PrintValidationException>(() =>
+            renderer.Render(new PrintRequest { Content = "Hello", MaxPaperLengthInches = 0.5 }));
+    }
+
+    [Fact]
     public void PaperEstimate_MatchesPhysicalFortyOneLineCalibrationReceipt()
     {
         var rows = 41;

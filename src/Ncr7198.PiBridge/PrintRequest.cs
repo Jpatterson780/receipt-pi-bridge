@@ -13,6 +13,13 @@ public sealed record PrintRequest
     public int Copies { get; init; } = 1;
     public string? Logo { get; init; }
     public string LogoPosition { get; init; } = "top";
+    // Per-request override of BridgeOptions.MaxPaperLengthInches — null
+    // (the normal case) just uses the server's configured default. Same
+    // "<= 0 means no cap" semantics as the server setting, for the rare
+    // print that's a deliberately long, known-in-advance exception rather
+    // than something that should permanently raise the default for
+    // everyone.
+    public double? MaxPaperLengthInches { get; init; }
 }
 
 public sealed record RenderedPrintJob(byte[] Bytes, string[] Preview, string Hash, string? PrintId,

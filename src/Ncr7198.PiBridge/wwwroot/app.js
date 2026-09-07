@@ -128,8 +128,29 @@
       cut: cut.checked,
       copies: Number(copies.value),
       logo: state.logoData,
-      logoPosition: $('logo-position').value
+      logoPosition: $('logo-position').value,
+      maxPaperLengthInches: $('max-paper').value.trim() ? Number($('max-paper').value) : null
     };
+  }
+
+  // Reflects the bridge's actual currently-configured default rather than
+  // a guess baked into this page — that default is a live setting
+  // (Bridge__MaxPaperLengthInches), not something this static page can
+  // know on its own. `maxInches` is undefined/null while the bridge is
+  // unreachable or hasn't reported one yet.
+  function updatePaperLimit(maxInches) {
+    const input = $('max-paper');
+    const help = $('paper-limit-help');
+    if (maxInches === undefined || maxInches === null) {
+      input.placeholder = 'server default';
+      help.textContent = 'Maximum estimated paper use is set on the bridge, including feeds, logos, cuts, and copies. Leave "Max paper" blank to use it, or set a one-off value for just this print.';
+    } else if (maxInches > 0) {
+      input.placeholder = `server default: ${maxInches}"`;
+      help.textContent = `Maximum estimated paper use is ${maxInches} inches by default, including feeds, logos, cuts, and copies. Leave "Max paper" blank to use it, or set a one-off value for just this print (0 removes the limit for that print).`;
+    } else {
+      input.placeholder = 'server default: no limit';
+      help.textContent = 'No maximum paper length is currently configured on the bridge. Set "Max paper" to cap just this one print.';
+    }
   }
 
   function formatSeconds(ms) {
@@ -334,6 +355,7 @@
       state.piVersion = health.version || null;
       showVersions();
       updateDispatcher(health.dispatcher ?? null);
+      updatePaperLimit(health.maxPaperLengthInches ?? null);
       if (health.transportMode === 'File') {
         $('health').textContent = 'Development file mode';
         $('health').className = 'status';
@@ -351,6 +373,7 @@
       state.piVersion = null;
       showVersions();
       updateDispatcher(undefined);
+      updatePaperLimit(undefined);
       $('health').textContent = 'Pi offline';
       $('health').className = 'status bad';
       setPrintAvailability(false, 'The Pi bridge is offline.');
