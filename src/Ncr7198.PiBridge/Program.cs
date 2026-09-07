@@ -42,7 +42,16 @@ app.MapPost("/api/dispatcher/status", (DispatcherReport report, DispatcherStatus
 });
 
 app.MapPost("/api/preview", (PrintRequest request, ReceiptRenderer renderer) =>
-    Execute(() => Results.Ok(renderer.Render(request).Preview)));
+    Execute(() =>
+    {
+        var rendered = renderer.Render(request);
+        // logo is the actual dithered 1-bit image (a data:image/bmp URL) —
+        // not a re-derived approximation, the literal bytes NcrReceipt.Logo()
+        // would send to the printer — so the web page can show what a logo
+        // will really look like on thermal paper instead of a "[LOGO: WxH]"
+        // placeholder. null whenever no logo was supplied.
+        return Results.Ok(new { lines = rendered.Preview, logo = rendered.LogoPreviewDataUrl });
+    }));
 
 app.MapPost("/api/print", async (PrintRequest request, ReceiptRenderer renderer, PrintCoordinator coordinator) =>
 {

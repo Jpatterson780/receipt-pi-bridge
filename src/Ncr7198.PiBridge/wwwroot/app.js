@@ -384,11 +384,35 @@
   $('preview-button').addEventListener('click', event => {
     clearReceiptPreview();
     run(event.currentTarget, async () => {
-      const lines = await post('/api/preview');
+      const result = await post('/api/preview');
+      const lines = result.lines;
       const preview = $('preview');
       preview.replaceChildren(...lines.map(line => {
         const row = document.createElement('div');
-        row.className = line === '[CUT]' ? 'preview-line cut' : line.startsWith('[LOGO:') ? 'preview-line logo' : 'preview-line';
+        if (line === '[CUT]') {
+          row.className = 'preview-line cut';
+          row.textContent = line;
+          return row;
+        }
+        if (line.startsWith('[LOGO:')) {
+          row.className = 'preview-line logo';
+          // result.logo is the actual dithered 1-bit image — the exact
+          // bytes the printer would receive, not a re-derived guess — so
+          // this shows what a logo will really look like on thermal paper
+          // instead of just its dimensions. Falls back to the dimensions
+          // text on the off chance it's missing.
+          if (result.logo) {
+            const img = document.createElement('img');
+            img.src = result.logo;
+            img.alt = 'Logo preview (dithered for thermal printing)';
+            img.className = 'preview-logo-img';
+            row.appendChild(img);
+          } else {
+            row.textContent = line;
+          }
+          return row;
+        }
+        row.className = 'preview-line';
         row.textContent = line;
         return row;
       }));

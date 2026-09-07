@@ -5,6 +5,63 @@ namespace Ncr7198.PiBridge;
 public sealed record RenderedLogo(byte[] Pixels, int Width, int Height)
 {
     public int RasterBands => (Height + 23) / 24;
+
+    // A viewable image of exactly the pixels NcrReceipt.Logo() packs into
+    // the printer's raster bytes — not a re-derived approximation, the
+    // literal same 0/1 array — so /api/preview can show what the logo will
+    // actually look like once dithered to 1-bit, instead of the "[LOGO:
+    // WxH]" placeholder this used to be the only option. BMP rather than
+    // PNG specifically because a 1bpp BMP needs no compression or CRC
+    // checksums to hand-roll, just a header and padded row data, and
+    // every browser renders a data:image/bmp <img> src fine.
+    public string ToBmpDataUrl()
+    {
+        var rowBytes = ((Width + 31) / 32) * 4; // 1bpp rows padded to a 4-byte boundary
+        var pixelDataSize = rowBytes * Height;
+        var fileSize = 14 + 40 + 8 + pixelDataSize;
+
+        using var stream = new MemoryStream(fileSize);
+        using var writer = new BinaryWriter(stream);
+
+        // BITMAPFILEHEADER (14 bytes)
+        writer.Write((byte)'B');
+        writer.Write((byte)'M');
+        writer.Write(fileSize);
+        writer.Write((short)0);
+        writer.Write((short)0);
+        writer.Write(14 + 40 + 8); // pixel data offset
+
+        // BITMAPINFOHEADER (40 bytes)
+        writer.Write(40);
+        writer.Write(Width);
+        writer.Write(Height); // positive => stored bottom-up, standard for BMP
+        writer.Write((short)1); // planes
+        writer.Write((short)1); // bits per pixel
+        writer.Write(0); // no compression
+        writer.Write(pixelDataSize);
+        writer.Write(2835); // ~72 DPI in pixels/meter; cosmetic only
+        writer.Write(2835);
+        writer.Write(2); // palette colors used
+        writer.Write(0); // important colors (0 = all)
+
+        // 2-color palette (BGRA): index 0 white, index 1 black
+        writer.Write(new byte[] { 0xFF, 0xFF, 0xFF, 0x00 });
+        writer.Write(new byte[] { 0x00, 0x00, 0x00, 0x00 });
+
+        var row = new byte[rowBytes];
+        for (var y = Height - 1; y >= 0; y--) // bottom-up
+        {
+            Array.Clear(row);
+            for (var x = 0; x < Width; x++)
+            {
+                if (Pixels[y * Width + x] != 0) row[x / 8] |= (byte)(0x80 >> (x % 8));
+            }
+            writer.Write(row);
+        }
+
+        writer.Flush();
+        return $"data:image/bmp;base64,{Convert.ToBase64String(stream.ToArray())}";
+    }
 }
 
 public sealed class LogoRenderer

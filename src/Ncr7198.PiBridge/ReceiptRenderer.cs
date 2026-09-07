@@ -73,7 +73,8 @@ public sealed class ReceiptRenderer
 
         var bytes = receipt.Build();
         return new RenderedPrintJob(bytes, [.. preview], Convert.ToHexString(SHA256.HashData(bytes)),
-            NormalizePrintId(request.PrintId), request.Copies, request.Cut, effectiveCut, cutForced);
+            NormalizePrintId(request.PrintId), request.Copies, request.Cut, effectiveCut, cutForced,
+            logo?.ToBmpDataUrl());
     }
 
     private static void ValidateRanges(PrintRequest request)

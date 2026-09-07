@@ -11,3 +11,4 @@ main{margin:28px auto 56px}header{margin-bottom:16px}.card{padding:17px 18px;mar
 .dispatcher.idle{color:#1358d1;border-color:#a8c8f2;background:#eef4fd}.dispatcher.active{color:var(--green);border-color:#a9d8c2;background:#eefaf4}
 .close-button{border:0;background:transparent;color:var(--muted);font-size:20px;line-height:1;padding:0 2px;cursor:pointer;border-radius:6px}.close-button:hover{background:#eef0f3;color:var(--ink)}
 #paper-estimate.over-limit{color:var(--red);font-weight:700}#last-print.error{color:var(--red)}
+.preview-logo-img{display:block;margin:0 auto;max-width:100%;image-rendering:pixelated;border:1px solid var(--line)}

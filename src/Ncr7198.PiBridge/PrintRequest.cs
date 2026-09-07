@@ -23,7 +23,7 @@ public sealed record PrintRequest
 }
 
 public sealed record RenderedPrintJob(byte[] Bytes, string[] Preview, string Hash, string? PrintId,
-    int Copies, bool RequestedCut, bool EffectiveCut, bool CutForced);
+    int Copies, bool RequestedCut, bool EffectiveCut, bool CutForced, string? LogoPreviewDataUrl = null);
 
 public sealed record PrintResult(string Status, string? PrintId, int Copies,
     bool RequestedCut, bool EffectiveCut, bool CutForced, int Bytes);
