@@ -32,8 +32,8 @@ app.UseCors();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/health", (IPrinterTransport printer, DispatcherStatus dispatcher, BridgeOptions options) => Health(printer, dispatcher, options, bridgeVersion));
-app.MapGet("/api/health", (IPrinterTransport printer, DispatcherStatus dispatcher, BridgeOptions options) => Health(printer, dispatcher, options, bridgeVersion));
+app.MapGet("/health", (IPrinterTransport printer, DispatcherStatus dispatcher, BridgeOptions options, PrintCoordinator coordinator) => Health(printer, dispatcher, options, coordinator, bridgeVersion));
+app.MapGet("/api/health", (IPrinterTransport printer, DispatcherStatus dispatcher, BridgeOptions options, PrintCoordinator coordinator) => Health(printer, dispatcher, options, coordinator, bridgeVersion));
 
 app.MapPost("/api/dispatcher/status", (DispatcherReport report, DispatcherStatus dispatcher) =>
 {
@@ -69,7 +69,7 @@ static IResult Execute(Func<IResult> action)
     catch (PrintValidationException exception) { return Error(400, exception.Message); }
 }
 
-static IResult Health(IPrinterTransport printer, DispatcherStatus dispatcher, BridgeOptions options, string version)
+static IResult Health(IPrinterTransport printer, DispatcherStatus dispatcher, BridgeOptions options, PrintCoordinator coordinator, string version)
 {
     var transportAvailable = printer.IsAvailable();
     var report = dispatcher.Snapshot();
@@ -82,6 +82,8 @@ static IResult Health(IPrinterTransport printer, DispatcherStatus dispatcher, Br
         transportAvailable,
         printerAvailable = printer.Mode == "Device" && transportAvailable,
         maxPaperLengthInches = options.MaxPaperLengthInches,
+        queueDepth = coordinator.Outstanding,
+        queueMax = options.MaxOutstandingJobs,
         dispatcher = report is null ? null : new
         {
             mode = report.Report.Mode,

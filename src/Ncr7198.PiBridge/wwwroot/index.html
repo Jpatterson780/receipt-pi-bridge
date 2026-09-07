@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>NCR 7198 Print Bridge</title>
+  <title>MVRK Print Bridge</title>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
   <main>
     <header>
-      <div class="brand"><img src="mvrk-logo.svg" alt="MVRK" class="brand-logo"><div><span class="eyebrow">NCR 7198</span><h1>Receipt Printer</h1></div></div>
-      <div class="header-status"><span id="health" class="status">Checking printer...</span><span id="dispatcher" class="status dispatcher hidden">Dispatcher unknown</span><span id="versions" class="versions">Web version loading · Pi version unknown</span></div>
+      <div class="brand"><img src="mvrk-logo.svg" alt="MVRK" class="brand-logo"><h1>Receipt Printer</h1></div>
+      <div class="header-status"><span id="health" class="status">Checking printer...</span><span id="queue" class="status hidden">Queue unknown</span><span id="dispatcher" class="status dispatcher hidden">Dispatcher unknown</span><span id="versions" class="versions">Web version loading · Pi version unknown</span></div>
     </header>
 
     <form id="connection-form" class="card connection-card">
@@ -45,7 +45,7 @@ AT-0117  Road Case A [case]
 2 items checked out
 Printed 1/1/2026, 12:00:00 PM</textarea>
         </div>
-        <div class="editor-footer"><span id="column-rule">44 columns</span><span id="character-count">0 / 16,384</span></div>
+        <div class="editor-footer"><span id="column-rule">44 columns</span><span id="paper-estimate"></span><span id="character-count">0 / 16,384</span></div>
       </section>
 
       <section class="card options-card">
@@ -73,6 +73,7 @@ Printed 1/1/2026, 12:00:00 PM</textarea>
         <button id="json-preview-button" class="secondary" type="button">JSON Body POST Preview</button>
         <button id="print-button" class="primary" type="submit" disabled title="Waiting for the Pi bridge.">Print</button>
       </div>
+      <p id="last-print" class="help hidden"></p>
     </form>
 
     <div class="preview-rail">

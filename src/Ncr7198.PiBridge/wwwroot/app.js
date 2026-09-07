@@ -7,7 +7,10 @@
     printInProgress: false,
     logoData: null,
     webVersion: null,
-    piVersion: null
+    piVersion: null,
+    // Populated from /api/health — null until the first successful check,
+    // same "don't know yet" meaning as webVersion/piVersion above.
+    serverMaxPaperInches: null
   };
   const connectionForm = $('connection-form');
   const bridgeUrl = $('bridge-url');
@@ -17,7 +20,11 @@
   const copies = $('copies');
   const cut = $('cut');
   const compressed = $('compressed');
+  const preLines = $('pre-lines');
+  const postLines = $('post-lines');
+  const maxPaper = $('max-paper');
   const message = $('message');
+  const LAST_PRINT_KEY = 'ncr7198.lastPrint';
   const preferenceIds = ['pre-lines', 'post-lines', 'compressed', 'cut', 'copies', 'logo-position'];
   const textLinesPerInch = 7.40;
   const printerDotsPerInch = 203;
@@ -113,6 +120,51 @@
     $('preview-width').textContent = `${width} characters wide`;
     $('character-count').textContent = `${text.value.length.toLocaleString()} / 16,384`;
     syncLineNumbers();
+    updateLiveEstimate();
+  }
+
+  // Estimated paper length as you type, well before Preview/Print would
+  // actually confirm it — catches an over-length receipt at the moment
+  // it happens instead of as a surprise rejection after filling out the
+  // whole form. Exact for Lines mode (wrap is always 'none' there, so
+  // each row is already exactly one physical line — see
+  // ReceiptRenderer.RenderLiteralLines on the server); an approximation
+  // for Content mode, which the bridge word-wraps server-side. Doesn't
+  // account for a logo's raster bands (unlike estimatePaperInches(),
+  // used after a real Preview) since that needs decoding the image — the
+  // "~" prefix already signals this is an estimate, and Preview/Print
+  // remain the actual source of truth either way.
+  function estimateLiveInches() {
+    const width = compressed.checked ? 56 : 44;
+    let contentRows;
+    if (state.mode === 'lines') {
+      contentRows = text.value.split('\n').length;
+    } else {
+      contentRows = text.value.split('\n').reduce((total, line) => {
+        if (line.length === 0) return total + 1;
+        let rows = 1, current = 0;
+        for (const word of line.split(' ')) {
+          const candidate = current === 0 ? word.length : current + 1 + word.length;
+          if (candidate > width) { rows++; current = word.length; }
+          else { current = candidate; }
+        }
+        return total + rows;
+      }, 0);
+    }
+    const textRows = (Number(preLines.value) || 0) + contentRows + (Number(postLines.value) || 0);
+    const effectiveCut = cut.checked || Number(copies.value) > 1;
+    const perCopy = textRows / textLinesPerInch + (effectiveCut ? cutterAllowanceInches : 0);
+    return perCopy * (Number(copies.value) || 1);
+  }
+
+  function updateLiveEstimate() {
+    const el = $('paper-estimate');
+    const inches = estimateLiveInches();
+    el.textContent = `~${inches.toFixed(2)} in`;
+    const override = maxPaper.value.trim();
+    const effectiveMax = override !== '' ? Number(override) : state.serverMaxPaperInches;
+    const overLimit = effectiveMax !== null && effectiveMax > 0 && inches > effectiveMax;
+    el.classList.toggle('over-limit', overLimit);
   }
 
   function payload() {
@@ -139,6 +191,8 @@
   // know on its own. `maxInches` is undefined/null while the bridge is
   // unreachable or hasn't reported one yet.
   function updatePaperLimit(maxInches) {
+    state.serverMaxPaperInches = maxInches === undefined ? null : maxInches;
+    updateLiveEstimate();
     const input = $('max-paper');
     const help = $('paper-limit-help');
     if (maxInches === undefined || maxInches === null) {
@@ -176,6 +230,55 @@
       el.textContent = `Dispatcher ${mode} · Polling Every ${formatSeconds(info.intervalMs)}s`;
       el.className = `status dispatcher ${info.mode}`;
     }
+  }
+
+  // How many jobs PrintCoordinator is currently holding (in flight or
+  // waiting behind MaxOutstandingJobs) — otherwise invisible from this
+  // page; a person watching it would have no way to tell "just printed"
+  // from "backed up" without this. `depth`/`max` are undefined while the
+  // bridge is unreachable.
+  function updateQueueDepth(depth, max) {
+    const el = $('queue');
+    if (depth === undefined || max === undefined) {
+      el.classList.add('hidden');
+      return;
+    }
+    el.classList.remove('hidden');
+    el.textContent = `Queue ${depth}/${max}`;
+    el.className = depth >= max ? 'status warn' : 'status';
+  }
+
+  // Persists across reloads (localStorage, same "this browser only" scope
+  // as the saved Bridge URL/preferences) so "did that last print actually
+  // go through" is answerable by glancing at the page after walking away,
+  // not just from the transient message shown at the moment it happened.
+  function renderLastPrint(entry) {
+    const el = $('last-print');
+    if (!entry) {
+      el.classList.add('hidden');
+      return;
+    }
+    el.classList.remove('hidden');
+    const time = new Date(entry.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (entry.ok) {
+      el.textContent = `Last print: ${time} · ${entry.status}${entry.printId ? ` · ${entry.printId}` : ''}`;
+      el.classList.remove('error');
+    } else {
+      el.textContent = `Last print: ${time} · failed · ${entry.message}`;
+      el.classList.add('error');
+    }
+  }
+
+  function recordLastPrint(entry) {
+    try { localStorage.setItem(LAST_PRINT_KEY, JSON.stringify(entry)); } catch { /* private browsing, etc. */ }
+    renderLastPrint(entry);
+  }
+
+  function loadLastPrint() {
+    try {
+      const raw = localStorage.getItem(LAST_PRINT_KEY);
+      renderLastPrint(raw ? JSON.parse(raw) : null);
+    } catch { renderLastPrint(null); }
   }
 
   function showMessage(value, kind) {
@@ -253,7 +356,7 @@
   }
 
   document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
-  [copies, compressed, text].forEach(control => control.addEventListener('input', syncOptions));
+  [copies, compressed, text, cut, preLines, postLines, maxPaper].forEach(control => control.addEventListener('input', syncOptions));
   text.addEventListener('scroll', syncLineNumbers);
   preferenceIds.forEach(id => $(id).addEventListener('change', savePreferences));
   $('logo').addEventListener('change', async event => {
@@ -341,9 +444,15 @@
   form.addEventListener('submit', event => {
     event.preventDefault();
     run($('print-button'), async () => {
-      const result = await post('/api/print');
-      const forced = result.cutForced ? ' Cut was forced because copies is greater than one.' : '';
-      showMessage(`Print ${result.status}: ${result.copies} ${result.copies === 1 ? 'copy' : 'copies'} submitted.${forced}`, 'success');
+      try {
+        const result = await post('/api/print');
+        const forced = result.cutForced ? ' Cut was forced because copies is greater than one.' : '';
+        showMessage(`Print ${result.status}: ${result.copies} ${result.copies === 1 ? 'copy' : 'copies'} submitted.${forced}`, 'success');
+        recordLastPrint({ at: Date.now(), ok: true, status: result.status, printId: result.printId });
+      } catch (error) {
+        recordLastPrint({ at: Date.now(), ok: false, message: error.message });
+        throw error;
+      }
     });
   });
 
@@ -356,6 +465,7 @@
       showVersions();
       updateDispatcher(health.dispatcher ?? null);
       updatePaperLimit(health.maxPaperLengthInches ?? null);
+      updateQueueDepth(health.queueDepth, health.queueMax);
       if (health.transportMode === 'File') {
         $('health').textContent = 'Development file mode';
         $('health').className = 'status';
@@ -374,6 +484,7 @@
       showVersions();
       updateDispatcher(undefined);
       updatePaperLimit(undefined);
+      updateQueueDepth(undefined, undefined);
       $('health').textContent = 'Pi offline';
       $('health').className = 'status bad';
       setPrintAvailability(false, 'The Pi bridge is offline.');
@@ -383,6 +494,7 @@
   loadBridgeUrl();
   loadWebVersion();
   loadPreferences();
+  loadLastPrint();
   setMode(state.mode);
   syncOptions();
   checkHealth();

@@ -20,6 +20,14 @@ public sealed class PrintCoordinator : BackgroundService
     private readonly ILogger<PrintCoordinator> _logger;
     private int _outstanding;
 
+    // For /api/health's queue-depth indicator — a person looking at the
+    // web page has no other way to see whether a print is actually
+    // in flight or backed up against MaxOutstandingJobs.
+    public int Outstanding
+    {
+        get { lock (_gate) { return _outstanding; } }
+    }
+
     public PrintCoordinator(IPrinterTransport transport, BridgeOptions options, ILogger<PrintCoordinator> logger)
     {
         _transport = transport;
